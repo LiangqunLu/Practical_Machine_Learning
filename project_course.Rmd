@@ -1,0 +1,83 @@
+---
+title: "project.class"
+output: html_document
+---
+
+#Weight Lifting Exercises Dataset
+
+##1. load data
+
+```{r}
+library(caret)
+library(forecast)
+library(e1071)
+library(randomForest)
+
+train <- read.csv("/Users/Leah/Desktop/pml-training.csv")
+test <- read.csv("/Users/Leah/Desktop/pml-testing.csv")
+dim(train); dim(test)
+# [1] 19622   160
+# [1]  20 160
+```
+
+## 2. feature selection by hand
+
+```{r}
+
+feature = c("num_window","roll_belt","pitch_belt","yaw_belt","total_accel_belt","gyros_belt_x","gyros_belt_y","gyros_belt_z","accel_belt_x","accel_belt_y","accel_belt_z",          "magnet_belt_x","magnet_belt_y","magnet_belt_z","roll_arm","pitch_arm","yaw_arm","total_accel_arm","gyros_arm_x","gyros_arm_y","gyros_arm_z","accel_arm_x",          "accel_arm_y","accel_arm_z","magnet_arm_x","magnet_arm_y","magnet_arm_z","roll_dumbbell",         "pitch_dumbbell","yaw_dumbbell","gyros_dumbbell_x","gyros_dumbbell_y",    "gyros_dumbbell_z","accel_dumbbell_x","accel_dumbbell_y",       "accel_dumbbell_z","magnet_dumbbell_x","magnet_dumbbell_y",     "magnet_dumbbell_z","roll_forearm","pitch_forearm","yaw_forearm", "gyros_forearm_x","gyros_forearm_y","gyros_forearm_z",    "accel_forearm_x","accel_forearm_y","accel_forearm_z",         "magnet_forearm_x","magnet_forearm_y","magnet_forearm_z","classe")
+
+training_n <- train[,feature]
+
+intrain <- createDataPartition(training_n$classe, p=0.6, list = FALSE) 
+training <- training_n[intrain, ]   
+testing <- training_n[-intrain, ]  
+dim(training); dim(testing)
+
+test <- test[,feature[1:(length(feature)-1)]]
+
+preProc <- preProcess(training, method='pca', thresh=0.9, outcome=training$classe )
+dim(preProc$rotation)
+
+```
+
+##3. build models
+
+```{r}
+set.seed(2016)
+
+#random forest
+modelFit <- randomForest(classe ~ .,data=training, importance=TRUE)
+summary(modelFit)
+plot(modelFit)
+importance(modelFit)
+imp <- data.matrix(importance(modelFit)[,6:7])
+imp <- rbind(imp, imp[,c(2,1)])
+imp <- cbind(rownames(imp), imp)
+imp[,3] <- "MeanDecreaseGini"
+imp[1:(nrow(imp)/2),3] <- "MeanDecreaseAccuracy"
+colnames(imp) <- c("Feature","Value", "Type")
+rownames(imp) <- seq(1, nrow(imp))
+imp <- data.frame(imp, stringsAsFactors = F)
+imp[,2] <- as.numeric(as.character(imp[,2]))
+
+ggplot(imp, aes(x= Feature, y = Value, fill = factor(Type))) + geom_bar(stat="identity", position="dodge")+ facet_grid(Type ~ .)  
+
+
+predictions <- predict(modelFit, newdata=testing)
+C <- confusionMatrix(predictions, testing$classe)
+acc <- C$overall[1]
+acc
+
+```
+
+##4. precition 
+
+```{r}
+pred <- predict(modelFit, test)
+pred
+table(pred)
+
+
+```
+
+
